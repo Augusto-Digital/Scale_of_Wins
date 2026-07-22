@@ -224,6 +224,12 @@ h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; color:
 .stage-pct { font-size: 20px; font-weight: 700; color: var(--navy-text); line-height: 1; }
 .stage-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--gray-400); margin-top: 5px; }
 .stage-amt { font-size: 13px; font-weight: 600; color: var(--navy-text); margin-top: 6px; }
+.rate-banner { display: flex; align-items: center; gap: 0; background: var(--navy-bg); border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
+.rate-banner-item { flex: 1; text-align: center; border-right: 1px solid rgba(255,255,255,0.12); padding: 0 12px; }
+.rate-banner-item:last-child { border-right: none; }
+.rate-figure { font-size: 26px; font-weight: 700; color: var(--green); line-height: 1; }
+.rate-figure-sm { font-size: 19px; font-weight: 700; color: white; line-height: 1; }
+.rate-sub { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 6px; line-height: 1.4; }
 
 /* ── SUMMARY ── */
 .summary-box { background: var(--navy-bg); border-radius: 14px; padding: 32px; color: white; margin-bottom: 20px; }
@@ -362,7 +368,7 @@ h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; color:
 
   <!-- Opportunities -->
   <div class="admin-section-title">Rumble Opportunities</div>
-  <div class="admin-section-sub">Add opportunities in priority order. Classify each as Quick Win or Comprehensive Win, choose the delivery bucket that matches scope, then set the win's price and its ME&amp;T (Maintenance, Evolution &amp; Training) price. Price is enforced to the bucket's range.</div>
+  <div class="admin-section-sub">Add opportunities in priority order. Classify each as Quick Win or Comprehensive Win, choose the delivery bucket that matches scope, then set the win's price. ME&amp;T is calculated automatically. Price is enforced to the bucket's range.</div>
   <div id="opp-list"></div>
   <button class="add-opp-btn" onclick="addOppField()">+ Add Opportunity</button>
 
@@ -483,7 +489,7 @@ h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; color:
     <h2>Here's what you've chosen</h2>
     <p class="lead">Review before moving to the Letter of Intent. Go back to adjust anything.</p>
     <div class="summary-box" id="summary-box"></div>
-    <div class="pause-notice"><strong>Fixed-term engagement:</strong> This is a defined engagement with a clear end date — not an open-ended subscription.</div>
+    <div class="pause-notice"><strong>Flexible run-rate engagement:</strong> Your rate elevates while Now wins are in execution, then settles to a lower ongoing rate. You can pause or adjust your baseline with 30 days' written notice.</div>
     <div class="btn-row">
       <button class="btn-secondary" onclick="goTo(5)">← Adjust</button>
       <button class="btn-primary" onclick="goTo(7)" style="font-size:17px;padding:16px 40px;">Continue →</button>
@@ -545,7 +551,7 @@ h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; color:
       <div class="loi-section"><div class="loi-sec-label">Engagement Overview</div><table class="loi-table" id="loi-overview"></table></div>
       <div class="loi-section"><div class="loi-sec-label">Scope & Deliverables</div><div class="loi-prose" id="loi-scope"></div></div>
       <div class="loi-section"><div class="loi-sec-label">Investment</div><table class="loi-table" id="loi-investment"></table></div>
-      <div class="pause-notice"><strong>Fixed-term engagement:</strong> This engagement concludes at the end of the agreed term. It does not renew automatically. Either party may terminate with 30 days written notice prior to the start of any remaining quarter.</div>
+      <div class="pause-notice"><strong>Flexible run-rate engagement:</strong> Your rate elevates while Now wins are in execution, then steps down to an ongoing rate once that window ends. You may pause or adjust your baseline run rate with 30 days' written notice.</div>
       <div class="loi-prose"><p>By signing below, <strong id="loi-co-2"></strong> expresses its intent to engage Augusto Digital under the terms described above. This letter of intent is non-binding but signals mutual commitment to proceed. A formal Statement of Work and Services Agreement will be issued prior to engagement activation.</p></div>
       <div class="sig-area">
         <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);margin-bottom:20px;">Authorized by <span id="loi-co-3"></span></div>
@@ -606,29 +612,85 @@ function clampToBucket(tier, bucketId, value) {
 // ─── STATE ─────────────────────────────────────────────────
 const S = {
   company: 'your company', contact: '', preparedBy: 'Lawrence McGlown', repEmail: 'lmcglown@augustodigital.com',
-  opps: [],   // { title, desc, tier:'QW'|'CW', bucket, price, cwQtrs, metPrice, metIncluded, timing, func }
+  opps: [],   // { title, desc, tier:'QW'|'CW', bucket, price, cwQtrs, timing, func } — ME&T is auto-derived, not stored
   archivedOpps: [], // wins removed via the trash icon — reactivate any time
   qwUC: [], cwUC: [],
   reviewers: [], // { name, email } — optional stakeholders to confirm alignment before the LOI
 };
-const UPFRONT_DISCOUNT = 0.05;
+const MET_RATE = 0.10; // ME&T = 10% of a win's bid, annualized
+const QUARTERLY_DISCOUNT = 0.05;
+const SEMIANNUAL_DISCOUNT = 0.10;
 let dragSrc = null, oppCount = 0, oppIds = [], isLeadMode = false, newWinTier = null, planViewMode = 'list';
 
 // ─── HELPERS ───────────────────────────────────────────────
 function winQtrs(o)       { return o.tier === 'CW' ? (o.bucket === 'q3' ? Math.max(3, o.cwQtrs || 3) : 2) : 1; }
 function winPrice(o)      { return clampToBucket(o.tier, o.bucket, o.price); }
-function winMETPrice(o)   { return Number(o.metPrice) || 0; }
-function winMETIncluded(o){ return o.metIncluded !== false; }
-function winMETTotal(o)   { return winMETIncluded(o) ? winMETPrice(o) : 0; }
+function winMETAnnual(o)  { return MET_RATE * winPrice(o); }   // 10% of bid, per year
+function winMETMonthly(o) { return winMETAnnual(o) / 12; }     // monthly ME&T contribution once a win's window ends
 function getByTiming(t)         { return S.opps.filter(o => o.timing === t); }
 function getNowBaseTotal()      { return getByTiming('now').reduce((s,o) => s + winPrice(o), 0); }
-function getNowMETotal()        { return getByTiming('now').reduce((s,o) => s + winMETTotal(o), 0); }
-function getNowGrandTotal()     { return getNowBaseTotal() + getNowMETotal(); }
+function getNowMETotal()        { return getByTiming('now').reduce((s,o) => s + winMETMonthly(o), 0); }
+function getNowGrandTotal()     { return getNowBaseTotal(); }
 function fmt(n) { return '$' + Math.round(n).toLocaleString(); }
 function winPriceLabel(o) {
   return o.tier === 'QW'
     ? `${fmt(winPrice(o))} (fixed bid)`
     : `${fmt(winPrice(o))} (fixed bid, ~${winQtrs(o)} quarters)`;
+}
+
+// ─── RUN-RATE BILLING MODEL ─────────────────────────────────
+// A phase's execution window, in months (longest win in that phase, in quarters * 3)
+function phaseWindowMonths(wins) { return wins.length ? Math.max(...wins.map(winQtrs)) * 3 : 0; }
+
+// Recommended baseline: 10% of the ENTIRE roadmap (Now+Next+Later), annualized, spread monthly.
+// This is the steady-state target once every win in the plan is live and laddered in.
+function baselineMonthlyRate() {
+  const total = S.opps.reduce((s,o) => s + winPrice(o), 0);
+  return (MET_RATE * total) / 12;
+}
+
+// While a phase is actively executing, the rate elevates to collect that phase's total bid across its window.
+function nowElevatedMonthly() {
+  const nowWins = getByTiming('now');
+  const months = phaseWindowMonths(nowWins);
+  if (!months) return 0;
+  const total = nowWins.reduce((s,o) => s + winPrice(o), 0);
+  return total / months;
+}
+
+// Once Now completes, Next is the next phase up — it becomes the dominant driver of the ongoing rate.
+function nextElevatedMonthly() {
+  const nextWins = getByTiming('next');
+  const months = phaseWindowMonths(nextWins);
+  if (!months) return 0;
+  const total = nextWins.reduce((s,o) => s + winPrice(o), 0);
+  return total / months;
+}
+
+// Later hasn't started executing yet — it contributes a smaller, forward-looking share.
+function laterBaselineMonthly() {
+  const total = getByTiming('later').reduce((s,o) => s + winPrice(o), 0);
+  return (MET_RATE * total) / 12;
+}
+
+// Once Now's window ends, its wins' ongoing contribution ladders in alongside Next's execution and Later's outlook.
+function nowLadderedMonthly() {
+  return getByTiming('now').reduce((s,o) => s + winMETMonthly(o), 0);
+}
+
+// The rate once Now completes: bulk driven by Next's active execution, plus Now's laddered-in wins and Later's outlook.
+function postNowMonthly() {
+  return nextElevatedMonthly() + nowLadderedMonthly() + laterBaselineMonthly();
+}
+
+// Apply the chosen invoicing frequency's discount to a monthly rate, returning the per-invoice amount.
+function freqAmount(monthlyRate, freq) {
+  if (freq === 'quarterly')   return monthlyRate * 3 * (1 - QUARTERLY_DISCOUNT);
+  if (freq === 'semiannual')  return monthlyRate * 6 * (1 - SEMIANNUAL_DISCOUNT);
+  return monthlyRate; // monthly, no discount
+}
+function freqLabel(freq) {
+  return freq === 'quarterly' ? 'Billed Quarterly' : freq === 'semiannual' ? 'Billed Semi-Annually' : 'Billed Monthly';
 }
 
 // ─── PROGRESS BAR ──────────────────────────────────────────
@@ -690,7 +752,6 @@ function addOppField(pre = null) {
   const func  = pre && pre.func ? pre.func : 'Company';
   const bucketId = pre && pre.bucket ? pre.bucket : bucketsFor(tier)[0].id;
   const price = pre && pre.price != null ? pre.price : findBucket(tier, bucketId).min;
-  const metPrice = pre && pre.metPrice != null ? pre.metPrice : 0;
   const div = document.createElement('div');
   div.className = 'opp-admin-card'; div.id = id;
   div.dataset.selectedTier = tier;
@@ -734,11 +795,7 @@ function addOppField(pre = null) {
       <input class="admin-input opp-price-input" type="number" step="1000" value="${price}" onchange="onPriceChange(this)">
       <div class="admin-note opp-price-note"></div>
     </div>
-    <div class="admin-field" style="margin-top:12px;margin-bottom:0;">
-      <label class="admin-label">ME&amp;T Price (Maintenance, Evolution &amp; Training — per 6 months)</label>
-      <input class="admin-input opp-met-input" type="number" min="0" step="500" value="${metPrice}">
-      <div class="admin-note">Leave at 0 if this win has no ME&amp;T option. Otherwise, the lead can include/remove it in their plan.</div>
-    </div>`;
+    <div class="admin-note" style="margin-top:12px;">ME&amp;T (Maintenance, Evolution &amp; Training) is calculated automatically at 10% of this win's bid, and begins once its execution window ends.</div>`;
   document.getElementById('opp-list').appendChild(div);
   populateBucketOptions(div, tier, bucketId);
 }
@@ -813,11 +870,8 @@ function applyConfig() {
     const bucket   = card.querySelector('.opp-bucket-input').value;
     const price    = clampToBucket(tier, bucket, card.querySelector('.opp-price-input').value);
     const cwQtrs   = Math.max(3, parseInt(card.querySelector('.opp-cwqtrs-input').value) || 3);
-    const metPrice = Math.max(0, parseInt(card.querySelector('.opp-met-input').value) || 0);
     const func     = card.querySelector('.opp-func-input').value || 'Company';
-    const existing = prevOpps[idx];
-    const metIncluded = existing && existing.title === title ? existing.metIncluded : true;
-    S.opps.push({ title, desc, tier, bucket, price, cwQtrs, metPrice, metIncluded, timing: null, func });
+    S.opps.push({ title, desc, tier, bucket, price, cwQtrs, timing: null, func });
   });
   const qwRaw = document.getElementById('cfg-qw-usecases').value;
   S.qwUC = qwRaw ? qwRaw.split('\n').map(l => l.trim()).filter(Boolean) : [];
@@ -914,7 +968,7 @@ function addWinFromField() {
     return;
   }
   const bucket = bucketsFor(newWinTier)[0];
-  S.opps.push({ title, desc, tier: newWinTier, bucket: bucket.id, price: bucket.min, cwQtrs: 3, metPrice: 0, metIncluded: true, timing: null, func: 'Company' });
+  S.opps.push({ title, desc, tier: newWinTier, bucket: bucket.id, price: bucket.min, cwQtrs: 3, timing: null, func: 'Company' });
   titleInput.value = '';
   descInput.value = '';
   titleInput.focus();
@@ -983,11 +1037,6 @@ function checkAllTimed() {
 }
 
 // ─── SCREEN 4: ENGAGEMENT PLAN ─────────────────────────────
-function toggleMET(idx, checked) {
-  S.opps[idx].metIncluded = checked;
-  renderEngagementPlan();
-}
-
 function renderEngagementPlan() {
   const nowWins   = getByTiming('now');
   const nextWins  = getByTiming('next');
@@ -996,18 +1045,10 @@ function renderEngagementPlan() {
   function winRows(wins) {
     if (!wins.length) return `<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:14px;">No wins assigned to this phase.</div>`;
     return wins.map(o => {
-      const idx = S.opps.indexOf(o);
       const durLabel = o.tier === 'QW' ? '1 quarter' : `~${winQtrs(o)} quarters`;
       const tierLabel = o.tier === 'QW' ? 'Quick Win' : 'Comprehensive Win';
       const metaParts = [tierLabel, durLabel];
       if (o.func && o.func !== 'Company') metaParts.push(o.func);
-      const hasMET = winMETPrice(o) > 0;
-      const included = winMETIncluded(o);
-      const metRow = hasMET ? `
-        <div class="met-row">
-          <label><input type="checkbox" ${included?'checked':''} onchange="toggleMET(${idx}, this.checked)"> Include ME&amp;T (Maintenance, Evolution &amp; Training)</label>
-          <div class="met-amount">${fmt(winMETPrice(o))}/6 mo</div>
-        </div>` : '';
       return `
         <div class="plan-row" style="grid-template-columns:1fr 140px;">
           <div>
@@ -1016,7 +1057,11 @@ function renderEngagementPlan() {
             <div class="win-meta">${metaParts.join(' · ')}</div>
           </div>
           <div class="pr-price">${fmt(winPrice(o))}</div>
-        </div>${metRow}`;
+        </div>
+        <div class="met-row">
+          <label>ME&amp;T (Maintenance, Evolution &amp; Training) — auto, begins after this win's window</label>
+          <div class="met-amount">${fmt(winMETMonthly(o))}/mo</div>
+        </div>`;
     }).join('');
   }
 
@@ -1026,7 +1071,7 @@ function renderEngagementPlan() {
     const collapsible = !!opts.collapsible;
     const sectionId = opts.id || label.toLowerCase();
     const base = wins.reduce((s,o) => s + winPrice(o), 0);
-    const met  = wins.reduce((s,o) => s + winMETTotal(o), 0);
+    const met  = wins.reduce((s,o) => s + winMETMonthly(o), 0);
     const headerStyle = `display:flex;align-items:center;gap:10px;margin-bottom:10px;${collapsible ? 'cursor:pointer;' : ''}`;
     const headerOnclick = collapsible ? ` onclick="toggleSectionCollapse('${sectionId}')"` : '';
     const summaryTag = collapsible ? `
@@ -1052,11 +1097,11 @@ function renderEngagementPlan() {
             <div class="plan-total-row">
               <div>
                 <div class="plan-total-label">${wins.length} win${wins.length!==1?'s':''} · base engagement</div>
-                ${met > 0 ? `<div class="plan-total-sub">+ ${fmt(met)}/6 mo ME&amp;T (included wins)</div>` : ''}
+                ${met > 0 ? `<div class="plan-total-sub">+ ${fmt(met)}/mo ME&amp;T once wins complete</div>` : ''}
               </div>
               <div style="text-align:right;">
                 <div class="plan-total-amount">${fmt(base)}</div>
-                ${met > 0 ? `<div class="plan-total-sub">${fmt(base+met)} incl. ME&amp;T</div>` : ''}
+                ${met > 0 ? `<div class="plan-total-sub">fixed bid total</div>` : ''}
               </div>
             </div>
           </div>
@@ -1082,7 +1127,7 @@ function renderEngagementPlan() {
   document.getElementById('plan-content').innerHTML = `
     <div class="section-label">Step 1 of 2 · Alignment</div>
     <h2>Your engagement plan</h2>
-    <p class="lead">Here's how your wins are structured across implementation phases. Now wins are billed on approval. Next and Later activate as each prior phase completes. Where offered, you can include or remove the ME&amp;T bundle for each win.</p>
+    <p class="lead">Here's how your wins are structured across implementation phases. Now wins launch on approval. Next and Later activate as each prior phase completes. ME&amp;T (Maintenance, Evolution &amp; Training) is included automatically for each win, beginning once that win's execution window ends.</p>
     <div class="plan-view-toggle">
       <button type="button" class="view-toggle-btn ${planViewMode==='list'?'active':''}" id="view-btn-list" onclick="setPlanView('list')">List View</button>
       <button type="button" class="view-toggle-btn ${planViewMode==='timeline'?'active':''}" id="view-btn-timeline" onclick="setPlanView('timeline')">Timeline View</button>
@@ -1268,85 +1313,63 @@ function renderAlignment() {
 
 // ─── SCREEN 5: PAYMENT SCHEDULE ────────────────────────────
 function renderPaymentSchedule() {
-  const base     = getNowBaseTotal();
-  const metTotal = getNowMETotal();
-  const upfront  = Math.round(base * (1 - UPFRONT_DISCOUNT));
-  const savings  = base - upfront;
-  const stage1   = Math.round(base * 0.4);
-  const stage2   = Math.round(base * 0.2);
-  const stage3   = base - stage1 - stage2;
-  const nowWins  = getByTiming('now');
-  const hasCW    = nowWins.some(o => o.tier === 'CW');
-  const termQtrs = nowWins.length ? Math.max(...nowWins.map(o => winQtrs(o))) : 1;
+  const nowWins      = getByTiming('now');
+  const windowMonths = phaseWindowMonths(nowWins);
+  const windowQtrs   = windowMonths / 3;
+  const elevated     = nowElevatedMonthly();
+  const postNow      = postNowMonthly();
+  const baseline     = baselineMonthlyRate();
+
+  const monthlyAmt = elevated;
+  const quarterlyAmt = freqAmount(elevated, 'quarterly');
+  const semiAmt = freqAmount(elevated, 'semiannual');
 
   const leadEl = document.getElementById('s5-lead');
   if (leadEl) {
-    leadEl.textContent = hasCW
-      ? `Your Now engagement runs for up to ${termQtrs} quarter${termQtrs !== 1 ? 's' : ''}, launching upon approval. Choose how you'd like to be invoiced for this fixed-bid engagement.`
-      : `Your Now wins are fixed bids, launching upon approval. Choose how you'd like to be invoiced.`;
+    leadEl.textContent = windowQtrs
+      ? `Your Now wins launch upon approval and run for ${windowQtrs} quarter${windowQtrs !== 1 ? 's' : ''}. Choose how often you'd like to be invoiced during that window.`
+      : `Choose how often you'd like to be invoiced.`;
   }
 
-  const termBanner = `
-    <div style="grid-column:1/-1;display:flex;align-items:center;gap:16px;background:var(--navy-bg);border-radius:12px;padding:18px 24px;margin-bottom:4px;">
-      <div style="font-size:34px;font-weight:700;color:var(--green);line-height:1;flex-shrink:0;">${termQtrs}</div>
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:700;color:white;">Quarter${termQtrs !== 1 ? 's' : ''} — fixed engagement term</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:3px;">Launches upon approval · Concludes end of Q${termQtrs} · No automatic renewal</div>
+  const rateBanner = `
+    <div class="rate-banner" style="grid-column:1/-1;">
+      <div class="rate-banner-item">
+        <div class="rate-figure">${fmt(elevated)}/mo</div>
+        <div class="rate-sub">during Now execution — Q1–Q${windowQtrs || 1}</div>
       </div>
-      <div style="text-align:right;flex-shrink:0;">
-        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:2px;">Base engagement total</div>
-        <div style="font-size:20px;font-weight:700;color:var(--green);">${fmt(base)}</div>
+      <div class="rate-banner-item">
+        <div class="rate-figure-sm">${fmt(postNow)}/mo</div>
+        <div class="rate-sub">ongoing rate once Now completes</div>
       </div>
-    </div>`;
-
-  const metBullet = metTotal > 0 ? `ME&amp;T (for included wins) invoiced separately — ${fmt(metTotal)}/6 months, semi-annual` : null;
-
-  const upfrontBullets = [
-    `One invoice at signing — ${fmt(upfront)}`,
-    `Save ${fmt(savings)} — ${Math.round(UPFRONT_DISCOUNT*100)}% preferred rate`,
-    metBullet,
-    `Fixed-bid engagement · No automatic renewal`,
-  ].filter(Boolean).map(t => `<li>${t}</li>`).join('');
-
-  const stagedBullets = [
-    metBullet,
-    `Fixed-bid engagement · No automatic renewal`,
-  ].filter(Boolean).map(t => `<li>${t}</li>`).join('');
-
-  const stageGrid = `
-    <div class="stage-grid">
-      <div class="stage-block" style="border-top-color:var(--teal);">
-        <div class="stage-pct">40%</div>
-        <div class="stage-label">At Signing</div>
-        <div class="stage-amt">${fmt(stage1)}</div>
-      </div>
-      <div class="stage-block" style="border-top-color:var(--gray-300);">
-        <div class="stage-pct">20%</div>
-        <div class="stage-label">At Midpoint</div>
-        <div class="stage-amt">${fmt(stage2)}</div>
-      </div>
-      <div class="stage-block" style="border-top-color:var(--green);">
-        <div class="stage-pct">40%</div>
-        <div class="stage-label">On Completion</div>
-        <div class="stage-amt">${fmt(stage3)}</div>
+      <div class="rate-banner-item">
+        <div class="rate-figure-sm">${fmt(baseline)}/mo</div>
+        <div class="rate-sub">steady-state target across your full roadmap</div>
       </div>
     </div>`;
 
-  document.getElementById('duration-grid').innerHTML = termBanner + `
-    <div class="dur-card" id="dc-upfront" onclick="selectPaySchedule('upfront')">
-      <div class="dur-badge">Save ${Math.round(UPFRONT_DISCOUNT*100)}%</div>
-      <div class="dur-title">Billed Upfront</div>
-      <div class="dur-price">${fmt(upfront)}<span> total</span></div>
-      <p class="dur-desc">One invoice at signing for the full engagement, at a preferred rate.</p>
-      <ul class="dur-list">${upfrontBullets}</ul>
+  document.getElementById('duration-grid').style.gridTemplateColumns = '1fr 1fr 1fr';
+  document.getElementById('duration-grid').innerHTML = rateBanner + `
+    <div class="dur-card" id="dc-monthly" onclick="selectPaySchedule('monthly')">
+      <div class="dur-title">Billed Monthly</div>
+      <div class="dur-price">${fmt(monthlyAmt)}<span>/mo</span></div>
+      <p class="dur-desc">Invoiced every month during your execution window.</p>
+      <ul class="dur-list"><li>No discount</li><li>Steps down to ${fmt(postNow)}/mo once Now completes</li></ul>
     </div>
-    <div class="dur-card" id="dc-staged" onclick="selectPaySchedule('staged')">
-      <div class="dur-title">Bill in Stages</div>
-      <div class="dur-price">${fmt(base)}<span> total</span></div>
-      <p class="dur-desc">Invoiced in three stages as the engagement progresses.</p>
-      ${stageGrid}
-      <ul class="dur-list">${stagedBullets}</ul>
-    </div>`;
+    <div class="dur-card" id="dc-quarterly" onclick="selectPaySchedule('quarterly')">
+      <div class="dur-badge">Save ${Math.round(QUARTERLY_DISCOUNT*100)}%</div>
+      <div class="dur-title">Billed Quarterly</div>
+      <div class="dur-price">${fmt(quarterlyAmt)}<span>/qtr</span></div>
+      <p class="dur-desc">Invoiced every 3 months at a preferred rate.</p>
+      <ul class="dur-list"><li>Save ${Math.round(QUARTERLY_DISCOUNT*100)}% vs. monthly</li><li>Steps down once Now completes</li></ul>
+    </div>
+    <div class="dur-card" id="dc-semiannual" onclick="selectPaySchedule('semiannual')">
+      <div class="dur-badge">Save ${Math.round(SEMIANNUAL_DISCOUNT*100)}%</div>
+      <div class="dur-title">Billed Semi-Annually</div>
+      <div class="dur-price">${fmt(semiAmt)}<span>/6 mo</span></div>
+      <p class="dur-desc">Invoiced every 6 months at our best rate.</p>
+      <ul class="dur-list"><li>Save ${Math.round(SEMIANNUAL_DISCOUNT*100)}% vs. monthly</li><li>Steps down once Now completes</li></ul>
+    </div>
+    <div class="plan-phase-note" style="grid-column:1/-1;">You can pause or adjust your baseline run rate with 30 days' written notice.</div>`;
   if (S.paySchedule) {
     const el = document.getElementById(`dc-${S.paySchedule}`);
     if (el) { el.classList.add('selected'); document.getElementById('btn-dur-next').disabled = false; }
@@ -1367,30 +1390,33 @@ function renderSummary() {
   const nowWins   = getByTiming('now');
   const nextWins  = getByTiming('next');
   const laterWins = getByTiming('later');
-  const base    = getNowBaseTotal();
-  const metTotal = getNowMETotal();
-  const price   = S.paySchedule === 'upfront' ? Math.round(base * (1 - UPFRONT_DISCOUNT)) : base;
-  const savings = base - Math.round(base * (1 - UPFRONT_DISCOUNT));
+  const base      = getNowBaseTotal();
+  const elevated  = nowElevatedMonthly();
+  const postNow   = postNowMonthly();
+  const freq      = S.paySchedule || 'monthly';
+  const invoiceAmt = freqAmount(elevated, freq);
   document.getElementById('summary-box').innerHTML = `
     <div class="summary-eyebrow">Engagement Summary · ${S.company}</div>
     <div class="summary-row"><div class="s-label">Now — Immediate</div><div class="s-value">${nowWins.map(o=>o.title).join(', ') || '—'}</div></div>
     ${nextWins.length?`<div class="summary-row"><div class="s-label">Next — On deck</div><div class="s-value">${nextWins.map(o=>o.title).join(', ')}</div></div>`:''}
     ${laterWins.length?`<div class="summary-row"><div class="s-label">Later — Future phase</div><div class="s-value">${laterWins.map(o=>o.title).join(', ')}</div></div>`:''}
-    <div class="summary-row"><div class="s-label">Payment</div><div class="s-value">${S.paySchedule === 'upfront' ? `Billed upfront (${Math.round(UPFRONT_DISCOUNT*100)}% discount)` : 'Staged — 40% / 20% / 40%'}</div></div>
-    <div class="summary-row"><div class="s-label">Base engagement — Now wins</div><div class="s-value big">${fmt(price)}</div></div>
-    ${S.paySchedule === 'upfront' ? `<div class="summary-row"><div class="s-label">Savings</div><div class="s-value green">${fmt(savings)} preferred rate discount</div></div>` : ''}
-    ${metTotal > 0 ? `<div class="summary-row"><div class="s-label">ME&amp;T Bundle (billed semi-annually)</div><div class="s-value green">${fmt(metTotal)}/6 months</div></div>` : ''}`;
+    <div class="summary-row"><div class="s-label">Billing</div><div class="s-value">${freqLabel(freq)}${freq!=='monthly' ? ` (save ${freq==='quarterly'?Math.round(QUARTERLY_DISCOUNT*100):Math.round(SEMIANNUAL_DISCOUNT*100)}%)` : ''}</div></div>
+    <div class="summary-row"><div class="s-label">Now wins — fixed-bid value</div><div class="s-value big">${fmt(base)}</div></div>
+    <div class="summary-row"><div class="s-label">Invoiced amount</div><div class="s-value green">${fmt(invoiceAmt)} / ${freq==='monthly'?'month':freq==='quarterly'?'quarter':'6 months'}</div></div>
+    <div class="summary-row"><div class="s-label">Rate after Now completes</div><div class="s-value">${fmt(postNow)}/mo</div></div>`;
 }
 
 // ─── SCREEN 7: LOI ─────────────────────────────────────────
 function renderLOI() {
   const nowWins   = getByTiming('now');
   const nextWins  = getByTiming('next');
-  const laterWins = getByTiming('later');
-  const base    = getNowBaseTotal();
-  const metTotal = getNowMETotal();
-  const price   = S.paySchedule === 'upfront' ? Math.round(base * (1 - UPFRONT_DISCOUNT)) : base;
-  const savings = base - Math.round(base * (1 - UPFRONT_DISCOUNT));
+  const base      = getNowBaseTotal();
+  const windowMonths = phaseWindowMonths(nowWins);
+  const windowQtrs   = windowMonths / 3;
+  const elevated  = nowElevatedMonthly();
+  const postNow   = postNowMonthly();
+  const freq      = S.paySchedule || 'monthly';
+  const invoiceAmt = freqAmount(elevated, freq);
   const today   = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
   ['loi-co','loi-co-2','loi-co-3'].forEach(id => document.getElementById(id).textContent = S.company);
@@ -1400,38 +1426,32 @@ function renderLOI() {
 
   document.getElementById('loi-overview').innerHTML = `
     <tr><td>Client</td><td>${S.company}${S.contact?' · '+S.contact:''}</td></tr>
-    <tr><td>Payment</td><td>${S.paySchedule === 'upfront' ? `Upfront — full engagement at preferred rate (${Math.round(UPFRONT_DISCOUNT*100)}% discount)` : 'Staged — 40% at signing, 20% at midpoint, 40% upon completion'}</td></tr>
+    <tr><td>Billing</td><td>${freqLabel(freq)}${freq!=='monthly' ? ` (save ${freq==='quarterly'?Math.round(QUARTERLY_DISCOUNT*100):Math.round(SEMIANNUAL_DISCOUNT*100)}%)` : ''} — ${fmt(invoiceAmt)} / ${freq==='monthly'?'month':freq==='quarterly'?'quarter':'6 months'}</td></tr>
     <tr><td>Estimated start</td><td>Within 30 days of signed agreement</td></tr>`;
 
-  const metScopeWins = nowWins.filter(o => winMETIncluded(o) && winMETPrice(o) > 0);
   document.getElementById('loi-scope').innerHTML = `
     <p>Augusto Digital will activate AI capabilities across the following opportunities, organized by implementation phase:</p>
     ${nowWins.length ? `<p><strong>Now (Immediate Activation):</strong></p><ul>${nowWins.map(o=>`<li><strong>${o.title}</strong>${o.desc?' — '+o.desc:''} — ${winPriceLabel(o)}</li>`).join('')}</ul>` : ''}
     ${nextWins.length ? `<p><strong>Next (Following Now Completion):</strong></p><ul>${nextWins.map(o=>`<li><strong>${o.title}</strong>${o.desc?' — '+o.desc:''}</li>`).join('')}</ul>` : ''}
-    ${metScopeWins.length ? `<p><strong>ME&amp;T:</strong> ${metScopeWins.map(o=>`${o.title} — ${fmt(winMETPrice(o))} / 6 months`).join('; ')}</p>` : ''}`;
+    <p><strong>ME&amp;T:</strong> Automatically included for each win, beginning once that win's execution window ends.</p>`;
 
-  const nowInvRows = nowWins.map(o => {
-    const meSt  = winQtrs(o) + 1;
-    const metRow = (winMETIncluded(o) && winMETPrice(o) > 0) ? `<tr><td style="padding-left:18px;color:var(--teal);font-size:13px;">↳ ME&amp;T Bundle <span style="color:var(--gray-300);font-size:11px;">(begins Q${meSt})</span></td><td style="color:var(--teal);">${fmt(winMETPrice(o))}/6 mo</td></tr>` : '';
-    return `<tr><td>${o.title} <span style="color:var(--gray-300);font-size:12px;">${o.tier==='QW'?'(QW · 1 qtr)':'(CW · ~'+winQtrs(o)+' qtrs)'}</span></td><td style="font-weight:600;color:var(--navy-text);">${winPriceLabel(o)}</td></tr>${metRow}`;
-  }).join('');
+  const nowInvRows = nowWins.map(o =>
+    `<tr><td>${o.title} <span style="color:var(--gray-300);font-size:12px;">${o.tier==='QW'?'(QW · 1 qtr)':'(CW · ~'+winQtrs(o)+' qtrs)'}</span></td><td style="font-weight:600;color:var(--navy-text);">${winPriceLabel(o)}</td></tr>`
+  ).join('');
 
   document.getElementById('loi-investment').innerHTML = `
     <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-bottom:8px;">Now — Immediate Activation</td></tr>
     ${nowInvRows}
-    <tr><td style="padding-top:12px;font-weight:700;color:var(--navy-text);">Base Engagement Total</td><td style="padding-top:12px;font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(base)}</td></tr>
-    ${S.paySchedule === 'upfront' ? `
-    <tr><td>Preferred Rate Discount (${Math.round(UPFRONT_DISCOUNT*100)}%)</td><td style="color:var(--green-dark);">−${fmt(savings)}</td></tr>
-    <tr><td style="font-weight:700;">Discounted Total</td><td style="font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(price)}</td></tr>` : ''}
-    ${metScopeWins.length ? `
-    <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">ME&amp;T</td></tr>
-    ${metScopeWins.map(o => `<tr><td>${o.title}</td><td style="color:var(--gray-400);">${fmt(winMETPrice(o))} / 6 months</td></tr>`).join('')}
-    <tr><td style="font-weight:700;padding-top:8px;">ME&amp;T Total (per 6 months)</td><td style="font-weight:700;color:var(--navy-text);padding-top:8px;">${fmt(metTotal)} / 6 months</td></tr>` : ''}
+    <tr><td style="padding-top:12px;font-weight:700;color:var(--navy-text);">Fixed-Bid Total</td><td style="padding-top:12px;font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(base)}</td></tr>
+    <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">Run-Rate Billing</td></tr>
+    <tr><td>Execution window</td><td>Q1 – Q${windowQtrs || 1}</td></tr>
+    <tr><td>Rate during execution</td><td style="font-weight:600;color:var(--navy-text);">${fmt(elevated)}/mo</td></tr>
+    <tr><td style="font-weight:700;">${freqLabel(freq)}</td><td style="font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(invoiceAmt)} / ${freq==='monthly'?'month':freq==='quarterly'?'quarter':'6 months'}</td></tr>
+    <tr><td>Rate after Now completes</td><td style="color:var(--gray-400);">${fmt(postNow)}/mo</td></tr>
     ${nextWins.length ? `
     <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">Next — Activated After Now</td></tr>
     ${nextWins.map(o=>`<tr><td>${o.title}</td><td style="color:var(--gray-400);">${winPriceLabel(o)}</td></tr>`).join('')}` : ''}
-    <tr><td style="padding-top:14px;">Invoicing</td><td style="padding-top:14px;">${S.paySchedule === 'upfront' ? 'Single invoice at signing — full engagement, preferred rate' : `Staged — ${fmt(Math.round(base*0.4))} at signing, ${fmt(Math.round(base*0.2))} at midpoint, ${fmt(base - Math.round(base*0.4) - Math.round(base*0.2))} upon completion`}</td></tr>
-    <tr><td>Renewal</td><td>None — fixed-bid engagement. Terminable with 30 days written notice.</td></tr>`;
+    <tr><td style="padding-top:14px;">Adjustments</td><td style="padding-top:14px;">You may pause or adjust your baseline run rate with 30 days' written notice.</td></tr>`;
 }
 
 function checkSig() {
@@ -1440,14 +1460,16 @@ function checkSig() {
 }
 
 function submitLOI() {
-  const base    = getNowBaseTotal();
-  const price   = S.paySchedule === 'upfront' ? Math.round(base * (1 - UPFRONT_DISCOUNT)) : base;
-  const metTotal = getNowMETotal();
-  const nowWins = getByTiming('now');
+  const base     = getNowBaseTotal();
+  const nowWins  = getByTiming('now');
+  const elevated = nowElevatedMonthly();
+  const postNow  = postNowMonthly();
+  const freq     = S.paySchedule || 'monthly';
+  const invoiceAmt = freqAmount(elevated, freq);
   const rec = {
     ts: new Date().toISOString(), company: S.company, contact: S.contact,
-    paySchedule: S.paySchedule, baseTotal: price, metTotal,
-    opps: S.opps.map(o=>({title:o.title,tier:o.tier,bucket:o.bucket,timing:o.timing,cwQtrs:o.cwQtrs,price:o.price,metPrice:o.metPrice,metIncluded:o.metIncluded})),
+    paySchedule: freq, baseTotal: base, elevatedMonthly: elevated, invoiceAmt, postNowMonthly: postNow,
+    opps: S.opps.map(o=>({title:o.title,tier:o.tier,bucket:o.bucket,timing:o.timing,cwQtrs:o.cwQtrs,price:o.price})),
     sigName: document.getElementById('sig-name').value,
     sigTitle: document.getElementById('sig-title').value,
     sigDate: document.getElementById('sig-date').value
@@ -1471,16 +1493,18 @@ function submitLOI() {
       'NOW WINS:',
       ...nowWins.map(o => `  • ${o.title} (${o.tier === 'QW' ? 'Quick Win · 1 qtr' : 'Comp. Win · ~' + winQtrs(o) + ' qtrs'}) — ${fmt(winPrice(o))}`),
       '',
-      `Base Total:   ${fmt(price)}${S.paySchedule === 'upfront' ? ` (upfront, ${Math.round(UPFRONT_DISCOUNT*100)}% discount)` : ' (staged billing — 40/20/40)'}`,
+      `Fixed-Bid Total:  ${fmt(base)}`,
+      `${freqLabel(freq)}:  ${fmt(invoiceAmt)} / ${freq==='monthly'?'month':freq==='quarterly'?'quarter':'6 months'}`,
+      `Rate after Now completes:  ${fmt(postNow)}/mo`,
+      '',
+      'Follow up within 1 business day to activate the engagement.',
     ];
-    if (metTotal > 0) bodyLines.push(`ME&T Bundle:  ${fmt(metTotal)}/6 months`);
-    bodyLines.push('', 'Follow up within 1 business day to activate the engagement.');
     const subject = encodeURIComponent(`LOI Received — ${S.company}`);
     const body    = encodeURIComponent(bodyLines.join('\n'));
     setTimeout(() => { window.location.href = `mailto:${S.repEmail}?subject=${subject}&body=${body}`; }, 400);
   }
   document.getElementById('confirm-summary').textContent =
-    `${nowWins.length} Now win${nowWins.length!==1?'s':''} · ${fmt(price)} base${metTotal>0?' + ME&T':''} · ${S.paySchedule === 'upfront' ? 'Billed Upfront' : 'Staged (40/20/40)'}`;
+    `${nowWins.length} Now win${nowWins.length!==1?'s':''} · ${fmt(base)} fixed-bid · ${freqLabel(freq)} at ${fmt(invoiceAmt)}`;
   goTo(9);
 }
 
@@ -1499,9 +1523,8 @@ function generateLeadLink() {
     const bucket   = card.querySelector('.opp-bucket-input').value;
     const price    = clampToBucket(tier, bucket, card.querySelector('.opp-price-input').value);
     const cwQtrs   = Math.max(3, parseInt(card.querySelector('.opp-cwqtrs-input').value) || 3);
-    const metPrice = Math.max(0, parseInt(card.querySelector('.opp-met-input').value) || 0);
     const func     = card.querySelector('.opp-func-input').value || 'Company';
-    opps.push({ title, desc, tier, bucket, price, cwQtrs, metPrice, metIncluded: true, func, timing: null });
+    opps.push({ title, desc, tier, bucket, price, cwQtrs, func, timing: null });
   });
   const qwUC = (document.getElementById('cfg-qw-usecases').value || '').split('\n').map(l => l.trim()).filter(Boolean);
   const cwUC = (document.getElementById('cfg-cw-usecases').value || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -1551,12 +1574,12 @@ function copyLeadLink() {
 
   if (!isLeadMode) {
     S.opps = [
-      { title: 'AI-assisted email & proposal drafting', desc: 'Draft client-ready emails and proposals from notes in seconds', tier: 'QW', bucket: 'd30', price: 32000, cwQtrs: 3, metPrice: 8000, metIncluded: true, timing: null, func: 'Sales' },
-      { title: 'Automated meeting summaries', desc: 'Auto-generate, format, and distribute structured meeting notes', tier: 'QW', bucket: 'd30', price: 28000, cwQtrs: 3, metPrice: 6000, metIncluded: true, timing: null, func: 'Company' },
-      { title: 'Intelligent document extraction', desc: 'Extract structured data from contracts, forms, and reports', tier: 'QW', bucket: 'd60', price: 48000, cwQtrs: 3, metPrice: 10000, metIncluded: true, timing: null, func: 'Operations' },
-      { title: 'Lead qualification & scoring', desc: 'Automate lead scoring using CRM and behavioral signals', tier: 'QW', bucket: 'd60', price: 52000, cwQtrs: 3, metPrice: 9000, metIncluded: true, timing: null, func: 'Sales' },
-      { title: 'End-to-end client onboarding workflow', desc: 'AI-driven activation from signed contract through kickoff', tier: 'CW', bucket: 'q2', price: 150000, cwQtrs: 2, metPrice: 30000, metIncluded: true, timing: null, func: 'Operations' },
-      { title: 'Predictive revenue intelligence', desc: 'Forecast pipeline health and flag at-risk accounts 60 days out', tier: 'CW', bucket: 'q3', price: 275000, cwQtrs: 3, metPrice: 45000, metIncluded: true, timing: null, func: 'Sales' },
+      { title: 'AI-assisted email & proposal drafting', desc: 'Draft client-ready emails and proposals from notes in seconds', tier: 'QW', bucket: 'd30', price: 32000, cwQtrs: 3, timing: null, func: 'Sales' },
+      { title: 'Automated meeting summaries', desc: 'Auto-generate, format, and distribute structured meeting notes', tier: 'QW', bucket: 'd30', price: 28000, cwQtrs: 3, timing: null, func: 'Company' },
+      { title: 'Intelligent document extraction', desc: 'Extract structured data from contracts, forms, and reports', tier: 'QW', bucket: 'd60', price: 48000, cwQtrs: 3, timing: null, func: 'Operations' },
+      { title: 'Lead qualification & scoring', desc: 'Automate lead scoring using CRM and behavioral signals', tier: 'QW', bucket: 'd60', price: 52000, cwQtrs: 3, timing: null, func: 'Sales' },
+      { title: 'End-to-end client onboarding workflow', desc: 'AI-driven activation from signed contract through kickoff', tier: 'CW', bucket: 'q2', price: 150000, cwQtrs: 2, timing: null, func: 'Operations' },
+      { title: 'Predictive revenue intelligence', desc: 'Forecast pipeline health and flag at-risk accounts 60 days out', tier: 'CW', bucket: 'q3', price: 275000, cwQtrs: 3, timing: null, func: 'Sales' },
     ];
     S.qwUC = [
       'AI-assisted email & proposal drafting',

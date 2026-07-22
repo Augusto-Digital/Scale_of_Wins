@@ -161,17 +161,21 @@ h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; color:
 .lot-btn:hover { border-color: var(--gray-400); color: var(--navy-text); background: var(--bg-default); }
 
 /* Total row */
-.plan-total { border-top: 2px solid var(--gray-100); padding: 20px 20px 16px; background: var(--navy-bg); border-radius: 0 0 14px 14px; }
-.plan-total-row { display: flex; justify-content: space-between; align-items: flex-end; }
-.plan-total-label { font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 6px; }
-.plan-total-amount { font-size: 38px; font-weight: 700; color: var(--green); line-height: 1; }
-.plan-total-sub { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 3px; }
-.plan-phase-note { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 14px; line-height: 1.6; max-width: 480px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
+.plan-total { border-top: 1px solid var(--gray-100); padding: 16px 20px; background: var(--bg-default); border-radius: 0 0 14px 14px; }
+.plan-total-row { display: flex; justify-content: space-between; align-items: baseline; }
+.plan-total-label { font-size: 12px; color: var(--gray-400); }
+.plan-total-amount { font-size: 22px; font-weight: 700; color: var(--navy-text); line-height: 1; }
+.plan-total-sub { font-size: 11px; color: var(--gray-300); margin-top: 3px; }
+.plan-phase-note { font-size: 12px; color: var(--gray-400); margin-top: 14px; line-height: 1.6; max-width: 480px; padding-top: 12px; border-top: 1px solid var(--gray-100); }
 .plan-services { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 .svc-tag { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px; background: rgba(34,177,97,0.15); color: var(--green); border: 1px solid rgba(34,177,97,0.25); }
-.met-row { padding:9px 20px 9px 20px;background:rgba(9,137,177,0.04);border-top:1px dashed var(--gray-100);display:flex;justify-content:space-between;align-items:center; }
-.met-row label { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:var(--teal); }
-.met-row input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color: var(--teal); }
+.win-meta { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+.phase-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.phase-label { font-size: 13px; font-weight: 700; color: var(--navy-text); }
+.met-row { padding:10px 20px; border-top:1px solid var(--gray-100); display:flex; justify-content:space-between; align-items:center; }
+.met-row label { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:var(--gray-400); }
+.met-row input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color: var(--navy-text); }
+.met-row .met-amount { font-size:12px; font-weight:600; color:var(--navy-text); }
 
 /* Parking lot */
 .parking-lot { background: white; border: 1px solid var(--gray-100); border-radius: 14px; overflow: hidden; margin-bottom: 28px; margin-top: 16px; }
@@ -993,44 +997,36 @@ function renderEngagementPlan() {
     if (!wins.length) return `<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:14px;">No wins assigned to this phase.</div>`;
     return wins.map(o => {
       const idx = S.opps.indexOf(o);
-      const durationTag = o.tier === 'QW'
-        ? `<span style="font-size:11px;color:var(--green-dark);font-weight:500;margin-left:8px;">1 quarter</span>`
-        : `<span style="font-size:11px;color:var(--teal);font-weight:500;margin-left:8px;">~${winQtrs(o)} quarters</span>`;
+      const durLabel = o.tier === 'QW' ? '1 quarter' : `~${winQtrs(o)} quarters`;
+      const tierLabel = o.tier === 'QW' ? 'Quick Win' : 'Comprehensive Win';
+      const metaParts = [tierLabel, durLabel];
+      if (o.func && o.func !== 'Company') metaParts.push(o.func);
       const hasMET = winMETPrice(o) > 0;
       const included = winMETIncluded(o);
       const metRow = hasMET ? `
         <div class="met-row">
-          <label><input type="checkbox" ${included?'checked':''} onchange="toggleMET(${idx}, this.checked)"> ME&amp;T (Maintenance, Evolution &amp; Training) <span style="color:var(--gray-300)">— your choice to include</span></label>
-          <div style="font-size:12px;font-weight:700;color:var(--teal);">${fmt(winMETPrice(o))}<span style="font-size:10px;font-weight:400;">/6 mo</span></div>
+          <label><input type="checkbox" ${included?'checked':''} onchange="toggleMET(${idx}, this.checked)"> Include ME&amp;T (Maintenance, Evolution &amp; Training)</label>
+          <div class="met-amount">${fmt(winMETPrice(o))}/6 mo</div>
         </div>` : '';
       return `
         <div class="plan-row" style="grid-template-columns:1fr 140px;">
           <div>
-            <div class="pr-title">${o.title}${durationTag}</div>
+            <div class="pr-title">${o.title}</div>
             ${o.desc ? `<div class="pr-sub">${o.desc}</div>` : ''}
-            <div class="pr-badges"><span class="tier-pill ${o.tier.toLowerCase()}">${o.tier==='QW'?'Quick Win':'Comprehensive Win'}</span>${o.func && o.func !== 'Company' ? `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(104,108,118,0.08);color:var(--gray-400);border:1px solid var(--gray-100);">${o.func}</span>` : ''}</div>
+            <div class="win-meta">${metaParts.join(' · ')}</div>
           </div>
           <div class="pr-price">${fmt(winPrice(o))}</div>
         </div>${metRow}`;
     }).join('');
   }
 
-  function bucketSection(label, cls, desc, wins, bgStyle, opts) {
+  function bucketSection(label, colorVar, desc, wins, opts) {
     if (!wins.length) return '';
     opts = opts || {};
     const collapsible = !!opts.collapsible;
     const sectionId = opts.id || label.toLowerCase();
     const base = wins.reduce((s,o) => s + winPrice(o), 0);
     const met  = wins.reduce((s,o) => s + winMETTotal(o), 0);
-    const metFooter = met > 0 ? `
-      <div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.15);">
-        <div style="font-size:12px;color:rgba(255,255,255,0.55);">ME&amp;T Bundle (included wins, semi-annual)</div>
-        <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.8);">${fmt(met)}/6 mo</div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:2px solid rgba(255,255,255,0.2);">
-        <div style="font-size:12px;color:rgba(255,255,255,0.45);">Total investment (incl. ME&amp;T)</div>
-        <div style="font-size:22px;font-weight:700;color:white;">${fmt(base + met)}</div>
-      </div>` : '';
     const headerStyle = `display:flex;align-items:center;gap:10px;margin-bottom:10px;${collapsible ? 'cursor:pointer;' : ''}`;
     const headerOnclick = collapsible ? ` onclick="toggleSectionCollapse('${sectionId}')"` : '';
     const summaryTag = collapsible ? `
@@ -1043,32 +1039,35 @@ function renderEngagementPlan() {
     return `
       <div style="margin-bottom:16px;">
         <div style="${headerStyle}"${headerOnclick}>
-          <div style="background:${cls};color:white;font-size:10px;font-weight:700;padding:4px 12px;border-radius:10px;text-transform:uppercase;letter-spacing:0.5px;">${label}</div>
-          <div style="font-size:13px;color:var(--gray-400);">${desc}</div>
+          <span class="phase-dot" style="background:${colorVar};"></span>
+          <span class="phase-label">${label}</span>
+          <span style="font-size:13px;color:var(--gray-400);">${desc}</span>
           ${summaryTag}
         </div>
         ${bodyOpen}
         <div class="plan-table">
           <div class="plan-table-head" style="grid-template-columns:1fr 140px;"><div>Win</div><div class="plan-col-right">Investment</div></div>
           ${winRows(wins)}
-          <div class="plan-total" style="background:${bgStyle};">
-            <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px;">${wins.length} win${wins.length!==1?'s':''} · base engagement</div>
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+          <div class="plan-total">
+            <div class="plan-total-row">
               <div>
+                <div class="plan-total-label">${wins.length} win${wins.length!==1?'s':''} · base engagement</div>
+                ${met > 0 ? `<div class="plan-total-sub">+ ${fmt(met)}/6 mo ME&amp;T (included wins)</div>` : ''}
+              </div>
+              <div style="text-align:right;">
                 <div class="plan-total-amount">${fmt(base)}</div>
-                <div class="plan-total-sub">total base${wins.some(o=>o.tier==='CW')?' across estimated quarters':''}</div>
+                ${met > 0 ? `<div class="plan-total-sub">${fmt(base+met)} incl. ME&amp;T</div>` : ''}
               </div>
             </div>
-            ${metFooter}
           </div>
         </div>
         ${bodyClose}
       </div>`;
   }
 
-  const nowSection = bucketSection('Now', 'var(--green)', 'Immediate activation — <strong style="color:var(--navy-text);">billed upon approval of this proposal</strong>', nowWins, 'var(--navy-bg)');
-  const nextSection = bucketSection('Next', 'var(--teal)', 'On deck — <strong style="color:var(--navy-text);">activated upon your confirmation after Now completes</strong>', nextWins, 'var(--teal)', {collapsible:true, id:'next'});
-  const laterSection = bucketSection('Later', 'var(--gray-400)', 'Future phase — <strong style="color:var(--navy-text);">execute when your organization is ready</strong>', laterWins, 'var(--gray-300)', {collapsible:true, id:'later'});
+  const nowSection = bucketSection('Now', 'var(--green)', 'Immediate activation, billed upon approval', nowWins);
+  const nextSection = bucketSection('Next', 'var(--teal)', 'Activates once Now is complete', nextWins, {collapsible:true, id:'next'});
+  const laterSection = bucketSection('Later', 'var(--gray-400)', 'Future phase, execute when ready', laterWins, {collapsible:true, id:'later'});
 
   const ganttHTML = renderGanttHTML(nowWins, nextWins, laterWins);
 
@@ -1409,8 +1408,7 @@ function renderLOI() {
     <p>Augusto Digital will activate AI capabilities across the following opportunities, organized by implementation phase:</p>
     ${nowWins.length ? `<p><strong>Now (Immediate Activation):</strong></p><ul>${nowWins.map(o=>`<li><strong>${o.title}</strong>${o.desc?' — '+o.desc:''} — ${winPriceLabel(o)}</li>`).join('')}</ul>` : ''}
     ${nextWins.length ? `<p><strong>Next (Following Now Completion):</strong></p><ul>${nextWins.map(o=>`<li><strong>${o.title}</strong>${o.desc?' — '+o.desc:''}</li>`).join('')}</ul>` : ''}
-    ${laterWins.length ? `<p><strong>Later (Future Phase):</strong></p><ul>${laterWins.map(o=>`<li><strong>${o.title}</strong>${o.desc?' — '+o.desc:''}</li>`).join('')}</ul>` : ''}
-    ${metScopeWins.length ? `<p>A <strong>ME&amp;T Bundle</strong> (Maintenance, Evolution &amp; Training) is included for the following wins, billed semi-annually and beginning after each win's build phase concludes — ${metScopeWins.map(o=>`${o.title}: ${fmt(winMETPrice(o))}/6 mo beginning Q${winQtrs(o)+1}`).join('; ')}. This is a separate, ongoing agreement from the base engagement.</p>` : ''}`;
+    ${metScopeWins.length ? `<p><strong>ME&amp;T:</strong> ${metScopeWins.map(o=>`${o.title} — ${fmt(winMETPrice(o))} / 6 months`).join('; ')}</p>` : ''}`;
 
   const nowInvRows = nowWins.map(o => {
     const meSt  = winQtrs(o) + 1;
@@ -1426,23 +1424,12 @@ function renderLOI() {
     <tr><td>Preferred Rate Discount (${Math.round(UPFRONT_DISCOUNT*100)}%)</td><td style="color:var(--green-dark);">−${fmt(savings)}</td></tr>
     <tr><td style="font-weight:700;">Discounted Total</td><td style="font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(price)}</td></tr>` : ''}
     ${metScopeWins.length ? `
-    <tr><td colspan="2" style="font-weight:700;color:var(--teal);padding-top:16px;padding-bottom:6px;">ME&amp;T Bundle — begins after build</td></tr>
-    ${metScopeWins.map(o => {
-      const meSt = winQtrs(o) + 1;
-      const rate = winMETPrice(o);
-      const periodRows = [1,2,3].map(n => {
-        const endQ = meSt + (n * 2) - 1;
-        return `<tr><td style="padding-left:18px;font-size:13px;color:var(--gray-400);">${n}x = ${fmt(n * rate)}</td><td style="font-size:13px;color:var(--teal);">covering Q${meSt} – Q${endQ}</td></tr>`;
-      }).join('');
-      return `<tr><td style="padding-top:4px;font-size:13px;font-weight:600;color:var(--navy-text);">${o.title} <span style="color:var(--gray-300);font-weight:400;">— begins Q${meSt} · ${fmt(rate)}/period</span></td><td></td></tr>${periodRows}`;
-    }).join('')}
-    <tr><td style="font-weight:700;padding-top:10px;">ME&amp;T per 6-month period (included wins)</td><td style="font-weight:700;color:var(--teal);padding-top:10px;">${fmt(metTotal)}/6 mo</td></tr>` : ''}
+    <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">ME&amp;T</td></tr>
+    ${metScopeWins.map(o => `<tr><td>${o.title}</td><td style="color:var(--gray-400);">${fmt(winMETPrice(o))} / 6 months</td></tr>`).join('')}
+    <tr><td style="font-weight:700;padding-top:8px;">ME&amp;T Total (per 6 months)</td><td style="font-weight:700;color:var(--navy-text);padding-top:8px;">${fmt(metTotal)} / 6 months</td></tr>` : ''}
     ${nextWins.length ? `
     <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">Next — Activated After Now</td></tr>
     ${nextWins.map(o=>`<tr><td>${o.title}</td><td style="color:var(--gray-400);">${winPriceLabel(o)}</td></tr>`).join('')}` : ''}
-    ${laterWins.length ? `
-    <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">Later — Future Phase</td></tr>
-    ${laterWins.map(o=>`<tr><td>${o.title}</td><td style="color:var(--gray-400);">${winPriceLabel(o)}</td></tr>`).join('')}` : ''}
     <tr><td style="padding-top:14px;">Invoicing</td><td style="padding-top:14px;">${S.paySchedule === 'upfront' ? 'Single invoice at signing — full engagement, preferred rate' : `Staged — ${fmt(Math.round(base*0.4))} at signing, ${fmt(Math.round(base*0.2))} at midpoint, ${fmt(base - Math.round(base*0.4) - Math.round(base*0.2))} upon completion`}</td></tr>
     <tr><td>Renewal</td><td>None — fixed-bid engagement. Terminable with 30 days written notice.</td></tr>`;
 }

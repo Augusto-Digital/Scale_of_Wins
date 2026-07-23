@@ -471,7 +471,7 @@ h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; color:
   <div class="nav"><div class="nav-wordmark"><img class="brand-logo" alt="Augusto" src="augusto-logo.png"></div></div>
   <div class="content fade-in">
     <div class="section-label">Step 1 of 2 · Alignment</div>
-    <h2>Your engagement structure</h2>
+    <h2>Choose Your Billing</h2>
     <p class="lead" id="s5-lead">Your Now wins activate immediately upon approval. Review the engagement term and choose how you'd like to be invoiced.</p>
     <div class="duration-grid" id="duration-grid"></div>
     <div class="btn-row">
@@ -634,8 +634,8 @@ function getNowGrandTotal()     { return getNowBaseTotal(); }
 function fmt(n) { return '$' + Math.round(n).toLocaleString(); }
 function winPriceLabel(o) {
   return o.tier === 'QW'
-    ? `${fmt(winPrice(o))} (fixed bid)`
-    : `${fmt(winPrice(o))} (fixed bid, ~${winQtrs(o)} quarters)`;
+    ? `${fmt(winPrice(o))} (baseline billing rate)`
+    : `${fmt(winPrice(o))} (baseline billing rate, ~${winQtrs(o)} quarters)`;
 }
 
 // ─── RUN-RATE BILLING MODEL ─────────────────────────────────
@@ -1101,7 +1101,7 @@ function renderEngagementPlan() {
               </div>
               <div style="text-align:right;">
                 <div class="plan-total-amount">${fmt(base)}</div>
-                ${met > 0 ? `<div class="plan-total-sub">fixed bid total</div>` : ''}
+                ${met > 0 ? `<div class="plan-total-sub">baseline billing rate total</div>` : ''}
               </div>
             </div>
           </div>
@@ -1332,11 +1332,11 @@ function renderPaymentSchedule() {
     <div class="rate-banner" style="grid-column:1/-1;">
       <div class="rate-banner-item">
         <div class="rate-figure">${fmt(elevated)}/mo</div>
-        <div class="rate-sub">during Now execution — Q1–Q${windowQtrs || 1}</div>
+        <div class="rate-sub">Starting baseline billing rate</div>
       </div>
       <div class="rate-banner-item">
         <div class="rate-figure-sm">${fmt(postNow)}/mo</div>
-        <div class="rate-sub">ongoing rate once Now completes</div>
+        <div class="rate-sub">Adjusted rate upon start of NEXT phase</div>
       </div>
     </div>`;
 
@@ -1394,7 +1394,7 @@ function renderSummary() {
     ${nextWins.length?`<div class="summary-row"><div class="s-label">Next — On deck</div><div class="s-value">${nextWins.map(o=>o.title).join(', ')}</div></div>`:''}
     ${laterWins.length?`<div class="summary-row"><div class="s-label">Later — Future phase</div><div class="s-value">${laterWins.map(o=>o.title).join(', ')}</div></div>`:''}
     <div class="summary-row"><div class="s-label">Billing</div><div class="s-value">${freqLabel(freq)}${freq!=='monthly' ? ` (save ${freq==='quarterly'?Math.round(QUARTERLY_DISCOUNT*100):Math.round(SEMIANNUAL_DISCOUNT*100)}%)` : ''}</div></div>
-    <div class="summary-row"><div class="s-label">Now wins — fixed-bid value</div><div class="s-value big">${fmt(base)}</div></div>
+    <div class="summary-row"><div class="s-label">Now wins — Baseline Billing Rate value</div><div class="s-value big">${fmt(base)}</div></div>
     <div class="summary-row"><div class="s-label">Invoiced amount</div><div class="s-value green">${fmt(invoiceAmt)} / ${freq==='monthly'?'month':freq==='quarterly'?'quarter':'6 months'}</div></div>
     <div class="summary-row"><div class="s-label">Rate after Now completes</div><div class="s-value">${fmt(postNow)}/mo</div></div>`;
 }
@@ -1435,7 +1435,7 @@ function renderLOI() {
   document.getElementById('loi-investment').innerHTML = `
     <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-bottom:8px;">Now — Immediate Activation</td></tr>
     ${nowInvRows}
-    <tr><td style="padding-top:12px;font-weight:700;color:var(--navy-text);">Fixed-Bid Total</td><td style="padding-top:12px;font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(base)}</td></tr>
+    <tr><td style="padding-top:12px;font-weight:700;color:var(--navy-text);">Baseline Billing Rate Total</td><td style="padding-top:12px;font-size:17px;font-weight:700;color:var(--green-dark);">${fmt(base)}</td></tr>
     <tr><td colspan="2" style="font-weight:700;color:var(--navy-text);padding-top:16px;padding-bottom:6px;">Run-Rate Billing</td></tr>
     <tr><td>Execution window</td><td>Q1 – Q${windowQtrs || 1}</td></tr>
     <tr><td>Rate during execution</td><td style="font-weight:600;color:var(--navy-text);">${fmt(elevated)}/mo</td></tr>
@@ -1486,7 +1486,7 @@ function submitLOI() {
       'NOW WINS:',
       ...nowWins.map(o => `  • ${o.title} (${o.tier === 'QW' ? 'Quick Win · 1 qtr' : 'Comp. Win · ~' + winQtrs(o) + ' qtrs'}) — ${fmt(winPrice(o))}`),
       '',
-      `Fixed-Bid Total:  ${fmt(base)}`,
+      `Baseline Billing Rate Total:  ${fmt(base)}`,
       `${freqLabel(freq)}:  ${fmt(invoiceAmt)} / ${freq==='monthly'?'month':freq==='quarterly'?'quarter':'6 months'}`,
       `Rate after Now completes:  ${fmt(postNow)}/mo`,
       '',
@@ -1497,7 +1497,7 @@ function submitLOI() {
     setTimeout(() => { window.location.href = `mailto:${S.repEmail}?subject=${subject}&body=${body}`; }, 400);
   }
   document.getElementById('confirm-summary').textContent =
-    `${nowWins.length} Now win${nowWins.length!==1?'s':''} · ${fmt(base)} fixed-bid · ${freqLabel(freq)} at ${fmt(invoiceAmt)}`;
+    `${nowWins.length} Now win${nowWins.length!==1?'s':''} · ${fmt(base)} baseline billing rate · ${freqLabel(freq)} at ${fmt(invoiceAmt)}`;
   goTo(9);
 }
 
